@@ -1,0 +1,6 @@
+numpy
+matplotlib
+imageio
+Pillow
+# 如需生成MP4，还需安装：
+# imageio-ffmpeg

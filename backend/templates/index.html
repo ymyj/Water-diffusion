@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>土壤污染扩散模拟系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 400px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #00d4ff;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+        .section-title {
+            font-size: 1.1em;
+            margin: 20px 0 10px;
+            color: #00d4ff;
+            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+            padding-bottom: 5px;
+        }
+        .param-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: #ccc;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 0.9em;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 5px rgba(0, 212, 255, 0.5);
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        .btn-start {
+            background: linear-gradient(135deg, #00c853 0%, #00e676 100%);
+            color: #fff;
+        }
+        .btn-stop {
+            background: linear-gradient(135deg, #ff1744 0%, #ff5252 100%);
+            color: #fff;
+        }
+        .btn-reset {
+            background: linear-gradient(135deg, #ff9100 0%, #ffab40 100%);
+            color: #fff;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .visualization {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .visualization img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .status-bar {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .progress-container {
+            flex: 1;
+            margin: 0 20px;
+        }
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00c853);
+            transition: width 0.3s;
+        }
+        .status-text {
+            font-size: 0.95em;
+        }
+        .collapsible {
+            margin-bottom: 10px;
+        }
+        .collapsible-header {
+            cursor: pointer;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .collapsible-content {
+            padding: 10px;
+            display: none;
+        }
+        .collapsible-content.open {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="sidebar">
+                <h1>⚙️ 参数设置</h1>
+                
+                <div class="collapsible">
+                    <div class="collapsible-header" @click="toggleSection('general')">
+                        <span>📊 通用参数</span>
+                        <span>{{ openSections.general ? '▼' : '▶' }}</span>
+                    </div>
+                    <div class="collapsible-content" :class="{ open: openSections.general }">
+                        <div class="param-group">
+                            <label>总步数 (steps)</label>
+                            <input type="number" v-model.number="params.steps" min="1000" max="20000">
+                        </div>
+                        <div class="param-group">
+                            <label>时间步长 (dt)</label>
+                            <input type="number" v-model.number="params.dt" step="0.01" min="0.01">
+                        </div>
+                        <div class="param-group">
+                            <label>衰减率 (decay_rate)</label>
+                            <input type="number" v-model.number="params.decay_rate" step="0.0001" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" @click="toggleSection('source')">
+                        <span>💧 污染源参数</span>
+                        <span>{{ openSections.source ? '▼' : '▶' }}</span>
+                    </div>
+                    <div class="collapsible-content" :class="{ open: openSections.source }">
+                        <div class="param-group">
+                            <label>源浓度 (source_concentration)</label>
+                            <input type="number" v-model.number="params.source_concentration" min="10">
+                        </div>
+                        <div class="param-group">
+                            <label>源位置 X (source_x)</label>
+                            <input type="number" v-model.number="params.source_x" min="0" max="400">
+                        </div>
+                        <div class="param-group">
+                            <label>源半径 X (source_radius_x)</label>
+                            <input type="number" v-model.number="params.source_radius_x" min="5">
+                        </div>
+                        <div class="param-group">
+                            <label>源半径 Y (source_radius_y)</label>
+                            <input type="number" v-model.number="params.source_radius_y" min="5">
+                        </div>
+                        <div class="param-group">
+                            <label>脉冲持续时间 (pulse_duration)</label>
+                            <input type="number" v-model.number="params.pulse_duration" min="100">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" @click="toggleSection('layerA')">
+                        <span>🌱 表土层 (A层)</span>
+                        <span>{{ openSections.layerA ? '▼' : '▶' }}</span>
+                    </div>
+                    <div class="collapsible-content" :class="{ open: openSections.layerA }">
+                        <div class="param-group">
+                            <label>垂直流速 (A_vy)</label>
+                            <input type="number" v-model.number="params.A_vy" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label>水平扩散系数 (A_Dx)</label>
+                            <input type="number" v-model.number="params.A_Dx" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>垂直扩散系数 (A_Dy)</label>
+                            <input type="number" v-model.number="params.A_Dy" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>孔隙度 (A_porosity)</label>
+                            <input type="number" v-model.number="params.A_porosity" step="0.01" min="0" max="1">
+                        </div>
+                        <div class="param-group">
+                            <label>吸附系数 (A_Kd)</label>
+                            <input type="number" v-model.number="params.A_Kd" step="0.1" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" @click="toggleSection('layerE')">
+                        <span>🏜️ 淋溶层 (E层)</span>
+                        <span>{{ openSections.layerE ? '▼' : '▶' }}</span>
+                    </div>
+                    <div class="collapsible-content" :class="{ open: openSections.layerE }">
+                        <div class="param-group">
+                            <label>垂直流速 (E_vy)</label>
+                            <input type="number" v-model.number="params.E_vy" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label>水平扩散系数 (E_Dx)</label>
+                            <input type="number" v-model.number="params.E_Dx" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>垂直扩散系数 (E_Dy)</label>
+                            <input type="number" v-model.number="params.E_Dy" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>孔隙度 (E_porosity)</label>
+                            <input type="number" v-model.number="params.E_porosity" step="0.01" min="0" max="1">
+                        </div>
+                        <div class="param-group">
+                            <label>吸附系数 (E_Kd)</label>
+                            <input type="number" v-model.number="params.E_Kd" step="0.1" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" @click="toggleSection('layerB')">
+                        <span>🧱 淀积层 (B层)</span>
+                        <span>{{ openSections.layerB ? '▼' : '▶' }}</span>
+                    </div>
+                    <div class="collapsible-content" :class="{ open: openSections.layerB }">
+                        <div class="param-group">
+                            <label>垂直流速 (B_vy)</label>
+                            <input type="number" v-model.number="params.B_vy" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label>水平扩散系数 (B_Dx)</label>
+                            <input type="number" v-model.number="params.B_Dx" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>垂直扩散系数 (B_Dy)</label>
+                            <input type="number" v-model.number="params.B_Dy" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>孔隙度 (B_porosity)</label>
+                            <input type="number" v-model.number="params.B_porosity" step="0.01" min="0" max="1">
+                        </div>
+                        <div class="param-group">
+                            <label>吸附系数 (B_Kd)</label>
+                            <input type="number" v-model.number="params.B_Kd" step="0.1" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" @click="toggleSection('layerC')">
+                        <span>🪨 母质层 (C层)</span>
+                        <span>{{ openSections.layerC ? '▼' : '▶' }}</span>
+                    </div>
+                    <div class="collapsible-content" :class="{ open: openSections.layerC }">
+                        <div class="param-group">
+                            <label>水平流速 (C_vx)</label>
+                            <input type="number" v-model.number="params.C_vx" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label>水平扩散系数 (C_Dx)</label>
+                            <input type="number" v-model.number="params.C_Dx" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>垂直扩散系数 (C_Dy)</label>
+                            <input type="number" v-model.number="params.C_Dy" step="0.1" min="0">
+                        </div>
+                        <div class="param-group">
+                            <label>孔隙度 (C_porosity)</label>
+                            <input type="number" v-model.number="params.C_porosity" step="0.01" min="0" max="1">
+                        </div>
+                        <div class="param-group">
+                            <label>吸附系数 (C_Kd)</label>
+                            <input type="number" v-model.number="params.C_Kd" step="0.1" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-start" @click="startSimulation" :disabled="isRunning">▶ 开始</button>
+                    <button class="btn-stop" @click="stopSimulation" :disabled="!isRunning">⏹ 停止</button>
+                    <button class="btn-reset" @click="resetSimulation">🔄 重置</button>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <h1>🌍 土壤污染扩散模拟</h1>
+                <div class="visualization">
+                    <img v-if="currentImage" :src="'data:image/png;base64,' + currentImage" alt="Simulation">
+                    <div v-else style="color: #888; font-size: 1.2em;">点击"开始"运行模拟</div>
+                </div>
+                <div class="status-bar">
+                    <div class="status-text">
+                        <strong>状态:</strong> {{ statusText }}
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+                        </div>
+                    </div>
+                    <div class="status-text">
+                        <strong>时间:</strong> {{ currentTime.toFixed(0) }} 天
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const params = ref({});
+                const currentImage = ref('');
+                const isRunning = ref(false);
+                const currentStep = ref(0);
+                const totalSteps = ref(6000);
+                const currentTime = ref(0);
+                const statusText = ref('就绪');
+                const socket = ref(null);
+                
+                const openSections = ref({
+                    general: true,
+                    source: true,
+                    layerA: false,
+                    layerE: false,
+                    layerB: false,
+                    layerC: false
+                });
+
+                const progress = ref(0);
+
+                const toggleSection = (section) => {
+                    openSections.value[section] = !openSections.value[section];
+                };
+
+                const loadDefaultParams = async () => {
+                    try {
+                        const response = await fetch('/api/params');
+                        params.value = await response.json();
+                    } catch (error) {
+                        console.error('加载默认参数失败:', error);
+                    }
+                };
+
+                const startSimulation = async () => {
+                    try {
+                        await fetch('/api/simulate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(params.value)
+                        });
+                        isRunning.value = true;
+                        statusText.value = '模拟中...';
+                    } catch (error) {
+                        console.error('启动模拟失败:', error);
+                    }
+                };
+
+                const stopSimulation = async () => {
+                    try {
+                        await fetch('/api/stop', { method: 'POST' });
+                        isRunning.value = false;
+                        statusText.value = '已停止';
+                    } catch (error) {
+                        console.error('停止模拟失败:', error);
+                    }
+                };
+
+                const resetSimulation = async () => {
+                    try {
+                        await fetch('/api/reset', { method: 'POST' });
+                        isRunning.value = false;
+                        currentStep.value = 0;
+                        currentTime.value = 0;
+                        progress.value = 0;
+                        statusText.value = '已重置';
+                    } catch (error) {
+                        console.error('重置模拟失败:', error);
+                    }
+                };
+
+                onMounted(() => {
+                    loadDefaultParams();
+                    
+                    socket.value = io();
+                    
+                    socket.value.on('frame', (data) => {
+                        currentImage.value = data.image;
+                        currentStep.value = data.step;
+                        currentTime.value = data.time;
+                        totalSteps.value = data.total_steps;
+                        progress.value = (data.step / data.total_steps) * 100;
+                    });
+                    
+                    socket.value.on('simulation_complete', () => {
+                        isRunning.value = false;
+                        statusText.value = '模拟完成';
+                    });
+                });
+
+                return {
+                    params,
+                    currentImage,
+                    isRunning,
+                    currentStep,
+                    totalSteps,
+                    currentTime,
+                    statusText,
+                    progress,
+                    openSections,
+                    toggleSection,
+                    startSimulation,
+                    stopSimulation,
+                    resetSimulation
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
