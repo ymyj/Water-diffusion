@@ -14,9 +14,9 @@
         }
         body {
             font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background: linear-gradient(135deg, #f8fafc 0%, #e8f4f8 100%);
             min-height: 100vh;
-            color: #fff;
+            color: #2c3e50;
         }
         .container {
             display: flex;
@@ -24,11 +24,11 @@
         }
         .sidebar {
             width: 400px;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            background: #ffffff;
+            border-right: 2px solid #4a90d9;
             padding: 20px;
             overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(74, 144, 217, 0.1);
         }
         .main-content {
             flex: 1;
@@ -39,14 +39,14 @@
         h1 {
             text-align: center;
             margin-bottom: 20px;
-            color: #00d4ff;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            color: #2c6ecb;
+            text-shadow: none;
         }
         .section-title {
             font-size: 1.1em;
             margin: 20px 0 10px;
-            color: #00d4ff;
-            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+            color: #2c6ecb;
+            border-bottom: 2px solid #4a90d9;
             padding-bottom: 5px;
         }
         .param-group {
@@ -56,21 +56,22 @@
             display: block;
             margin-bottom: 5px;
             font-size: 0.9em;
-            color: #ccc;
+            color: #4a5568;
         }
         input[type="number"] {
             width: 100%;
             padding: 8px 12px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid #cbd5e0;
             border-radius: 5px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
+            background: #f7fafc;
+            color: #2d3748;
             font-size: 0.9em;
         }
         input[type="number"]:focus {
             outline: none;
-            border-color: #00d4ff;
-            box-shadow: 0 0 5px rgba(0, 212, 255, 0.5);
+            border-color: #4a90d9;
+            box-shadow: 0 0 5px rgba(74, 144, 217, 0.3);
+            background: #ffffff;
         }
         .btn-group {
             display: flex;
@@ -88,20 +89,20 @@
             font-weight: bold;
         }
         .btn-start {
-            background: linear-gradient(135deg, #00c853 0%, #00e676 100%);
+            background: linear-gradient(135deg, #2c6ecb 0%, #4a90d9 100%);
             color: #fff;
         }
         .btn-stop {
-            background: linear-gradient(135deg, #ff1744 0%, #ff5252 100%);
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
             color: #fff;
         }
         .btn-reset {
-            background: linear-gradient(135deg, #ff9100 0%, #ffab40 100%);
+            background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
             color: #fff;
         }
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 5px 15px rgba(44, 110, 203, 0.3);
         }
         button:disabled {
             opacity: 0.5;
@@ -113,8 +114,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background: rgba(0, 0, 0, 0.3);
+            background: #ffffff;
             border-radius: 10px;
+            border: 2px solid #e2e8f0;
             overflow: hidden;
             position: relative;
         }
@@ -126,8 +128,9 @@
         .status-bar {
             margin-top: 15px;
             padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
+            background: #ffffff;
             border-radius: 8px;
+            border: 1px solid #e2e8f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -138,13 +141,13 @@
         }
         .progress-bar {
             height: 8px;
-            background: rgba(255, 255, 255, 0.1);
+            background: #e2e8f0;
             border-radius: 4px;
             overflow: hidden;
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #00d4ff, #00c853);
+            background: linear-gradient(90deg, #2c6ecb, #4a90d9);
             transition: width 0.3s;
         }
         .status-text {
@@ -156,8 +159,9 @@
         .collapsible-header {
             cursor: pointer;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.05);
+            background: #f7fafc;
             border-radius: 5px;
+            border: 1px solid #e2e8f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -354,7 +358,7 @@
                 <h1>🌍 土壤污染扩散模拟</h1>
                 <div class="visualization">
                     <img v-if="currentImage" :src="'data:image/png;base64,' + currentImage" alt="Simulation">
-                    <div v-else style="color: #888; font-size: 1.2em;">点击"开始"运行模拟</div>
+                    <div v-else style="color: #a0aec0; font-size: 1.2em;">点击"开始"运行模拟</div>
                 </div>
                 <div class="status-bar">
                     <div class="status-text">
