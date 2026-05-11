@@ -1,65 +1,64 @@
-from flask import Flask, request, jsonify, send_file
-from flask_socketio import SocketIO, emit
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+import socketio
 from simulation import SoilPollutionSimulator
-import threading
+import asyncio
+import traceback
 import os
 import io
 import base64
 from PIL import Image
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret_key_for_demo'
-socketio = SocketIO(app, cors_allowed_origins="*")
+app = FastAPI()
+
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins="*")
+socket_app = socketio.ASGIApp(sio, app)
 
 simulator = None
-simulation_thread = None
 is_running = False
 frames_store = []
 
 
-@app.route('/')
-def index():
-    with open(os.path.join(os.path.dirname(__file__), 'templates', 'index.html'), 'r', encoding='utf-8') as f:
-        return f.read()
+@app.get('/')
+async def index():
+    file_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html')
+    return FileResponse(file_path)
 
 
-@app.route('/api/simulate', methods=['POST'])
-def start_simulation():
-    global simulator, simulation_thread, is_running
+@app.post('/api/simulate')
+async def start_simulation(request: Request):
+    global simulator, is_running
     
     if is_running:
-        return jsonify({'error': 'Simulation already running'}), 400
+        return JSONResponse(content={'error': 'Simulation already running'}, status_code=400)
     
-    params = request.json
+    params = await request.json()
     simulator = SoilPollutionSimulator(params)
-    
     is_running = True
-    simulation_thread = threading.Thread(target=run_simulation)
-    simulation_thread.daemon = True
-    simulation_thread.start()
     
-    return jsonify({'status': 'started'})
+    asyncio.create_task(_run_simulation_wrapper())
+    
+    return JSONResponse(content={'status': 'started'})
 
 
-@app.route('/api/stop', methods=['POST'])
-def stop_simulation():
+@app.post('/api/stop')
+async def stop_simulation():
     global is_running
     is_running = False
-    return jsonify({'status': 'stopped'})
+    return JSONResponse(content={'status': 'stopped'})
 
 
-@app.route('/api/reset', methods=['POST'])
-def reset_simulation():
+@app.post('/api/reset')
+async def reset_simulation():
     global simulator, is_running, frames_store
     is_running = False
     frames_store = []
     if simulator:
         simulator.reset()
-        # 渲染初始帧
         initial_frame = simulator.render_frame(simulator.c, 0)
         stats = simulator.calculate_stats()
         depth_data, concentration_data = simulator.get_depth_profile()
-        socketio.emit('frame', {
+        await sio.emit('frame', {
             'image': initial_frame,
             'step': 0,
             'time': 0,
@@ -68,14 +67,14 @@ def reset_simulation():
             'depth_data': depth_data,
             'concentration_data': concentration_data
         })
-    return jsonify({'status': 'reset'})
+    return JSONResponse(content={'status': 'reset'})
 
 
-@app.route('/api/export-animation', methods=['GET'])
-def export_animation():
+@app.get('/api/export-animation')
+async def export_animation():
     global frames_store
     if not frames_store:
-        return jsonify({'error': 'No frames to export'}), 400
+        return JSONResponse(content={'error': 'No frames to export'}, status_code=400)
     
     try:
         images = []
@@ -96,24 +95,27 @@ def export_animation():
             optimize=False
         )
         output.seek(0)
-        return send_file(output, mimetype='image/gif', as_attachment=True, download_name='simulation.gif')
+        
+        return StreamingResponse(output, media_type='image/gif',
+                                 headers={'Content-Disposition': 'attachment; filename="simulation.gif"'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return JSONResponse(content={'error': str(e)}, status_code=500)
 
 
-@app.route('/api/params', methods=['GET'])
-def get_default_params():
+@app.get('/api/params')
+async def get_default_params():
     temp_sim = SoilPollutionSimulator()
-    return jsonify(temp_sim.default_params)
+    return JSONResponse(content=temp_sim.default_params)
 
 
-@socketio.on('connect')
-def handle_connect():
+@sio.on('connect')
+async def handle_connect(sid, environ):
+    global simulator
     if simulator:
         initial_frame = simulator.render_frame(simulator.c, 0)
         stats = simulator.calculate_stats()
         depth_data, concentration_data = simulator.get_depth_profile()
-        emit('frame', {
+        await sio.emit('frame', {
             'image': initial_frame,
             'step': 0,
             'time': 0,
@@ -121,10 +123,24 @@ def handle_connect():
             'stats': stats,
             'depth_data': depth_data,
             'concentration_data': concentration_data
-        })
+        }, room=sid)
 
 
-def run_simulation():
+@sio.on('disconnect')
+async def handle_disconnect(sid):
+    pass
+
+
+async def _run_simulation_wrapper():
+    try:
+        await run_simulation()
+    except Exception as e:
+        traceback.print_exc()
+        global is_running
+        is_running = False
+
+
+async def run_simulation():
     global is_running, simulator, frames_store
     
     if not simulator:
@@ -132,36 +148,64 @@ def run_simulation():
     
     frames_store = []
     steps = simulator.steps
-    frame_interval = 25  # 每25步发送一帧
+    frame_interval = 25
     
-    for step in range(steps):
-        if not is_running:
-            break
-        
-        simulator.c = simulator.solve_step(simulator.c, step)
-        
-        if step % frame_interval == 0:
-            frame_image = simulator.render_frame(simulator.c, step)
-            time_days = step * simulator.dt
-            stats = simulator.calculate_stats()
-            depth_data, concentration_data = simulator.get_depth_profile()
-            
-            # 存储帧用于导出
-            frames_store.append(frame_image)
-            
-            socketio.emit('frame', {
-                'image': frame_image,
-                'step': step,
-                'time': time_days,
-                'total_steps': steps,
-                'stats': stats,
-                'depth_data': depth_data,
-                'concentration_data': concentration_data
-            })
+    import concurrent.futures
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     
-    socketio.emit('simulation_complete')
-    is_running = False
+    try:
+        for step in range(steps):
+            if not is_running:
+                break
+            
+            result = await asyncio.get_running_loop().run_in_executor(
+                executor,
+                lambda s=step: simulator.solve_step(simulator.c, s)
+            )
+            simulator.c = result
+            
+            if step % frame_interval == 0:
+                frame_image = await asyncio.get_running_loop().run_in_executor(
+                    executor,
+                    lambda: simulator.render_frame(simulator.c, step)
+                )
+                time_days = step * simulator.dt
+                stats = await asyncio.get_running_loop().run_in_executor(
+                    executor,
+                    lambda: simulator.calculate_stats()
+                )
+                depth_data, concentration_data = await asyncio.get_running_loop().run_in_executor(
+                    executor,
+                    lambda: simulator.get_depth_profile()
+                )
+                
+                frames_store.append(frame_image)
+                
+                await sio.emit('frame', {
+                    'image': frame_image,
+                    'step': step,
+                    'time': time_days,
+                    'total_steps': steps,
+                    'stats': stats,
+                    'depth_data': depth_data,
+                    'concentration_data': concentration_data
+                })
+        
+        await sio.emit('simulation_complete')
+    finally:
+        executor.shutdown(wait=False)
+        is_running = False
 
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=8000)
+    print('\n========================================')
+    print('  地下水污染垂向扩散模拟平台')
+    print('  访问地址: http://localhost:8000')
+    print('  按 Ctrl+C 停止服务')
+    print('========================================\n')
+    import uvicorn
+    import logging
+    logging.getLogger('uvicorn.access').handlers = [logging.StreamHandler()]
+    logging.getLogger('uvicorn.access').setLevel(logging.INFO)
+    logging.getLogger('uvicorn.error').handlers = [logging.StreamHandler()]
+    uvicorn.run('app:socket_app', host='0.0.0.0', port=8000, log_level='info', access_log=True)
