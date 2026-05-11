@@ -2,5 +2,9 @@ numpy
 matplotlib
 imageio
 Pillow
+# FastAPI 框架依赖
+fastapi
+uvicorn
+python-socketio[asyncio]
 # 如需生成MP4，还需安装：
 # imageio-ffmpeg
