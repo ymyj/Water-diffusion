@@ -220,6 +220,7 @@
             width: 100%;
             height: 100%;
             object-fit: fill;
+            image-rendering: auto;
         }
         .stats-area {
             width: 520px;
@@ -342,7 +343,7 @@
         <div class="header">
             <div class="header-title">
                 <span class="icon">💧</span>
-                <span>地下水垂向扩散模拟平台</span>
+                <span>地下水污染垂向扩散模拟平台</span>
             </div>
             <div class="header-buttons">
                 <button class="btn-run" @click="startSimulation" :disabled="isRunning">
@@ -569,7 +570,7 @@
                             </div>
                         </div>
                         <div class="stats-card" style="flex: 1; display: flex; flex-direction: column;">
-                            <div class="stats-title"> 浓度随深度变化</div>
+                            <div class="stats-title"> 浓度变化曲线</div>
                             <div class="chart-container">
                                 <canvas id="depthChart"></canvas>
                             </div>
@@ -662,16 +663,8 @@
                             indexAxis: 'y',
                             plugins: {
                                 legend: {
-                                    display: true,
-                                    position: 'top',
-                                    labels: { color: '#2c3e50' }
+                                    display: false,
                                 },
-                                title: {
-                                    display: true,
-                                    text: '浓度随深度变化 (x = 200 m处)',
-                                    color: '#2c6ecb',
-                                    font: { size: 12 }
-                                }
                             },
                             scales: {
                                 x: {

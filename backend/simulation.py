@@ -201,7 +201,7 @@ class SoilPollutionSimulator:
 
     def render_frame(self, c, step):
         """将当前状态渲染为图片"""
-        fig, ax = plt.subplots(figsize=(11, 8), dpi=100)
+        fig, ax = plt.subplots(figsize=(16, 8), dpi=200)
 
         # 绘制地质背景
         ax.fill_between(self.x_arr, self.ae_boundary, self.surface_y, color='#8FBC8F', alpha=0.3)
@@ -215,7 +215,7 @@ class SoilPollutionSimulator:
 
         # 绘制污染羽流
         im = ax.imshow(c, cmap=my_cmap, origin="lower", vmin=1.0, vmax=self.source_concentration / 1.5,
-                       interpolation='bilinear')
+                       interpolation='bilinear', aspect='auto')
 
         # 绘制边界线
         ax.plot(self.x_arr, self.surface_y, color='limegreen', linestyle='-', linewidth=2)
@@ -224,14 +224,25 @@ class SoilPollutionSimulator:
         ax.plot(self.x_arr, self.bc_boundary, color='gray', linestyle='-', linewidth=2)
 
         # 标题
-        ax.set_title(f"污染物在自然土壤剖面中的运移扩散 (t = {step * self.dt:.0f} 天)", pad=15, fontsize=14)
+        ax.set_title(f"地下水污染垂向扩散模拟 (周期：t = {step * self.dt:.0f} 天)", pad=15, fontsize=14)
+
+        # 坐标轴标签
+        ax.set_xlabel("水平距离 (m)", fontsize=12)
+        ax.set_ylabel("深度 (m)", fontsize=12)
+        yticks = np.arange(0, 401, 50)
+
+        ax.set_yticks(yticks)
+
+        ax.set_yticklabels(
+            [str(400 - y) for y in yticks]
+        )
 
         # 图例
         patch_A = mpatches.Patch(facecolor='#8FBC8F', edgecolor='limegreen', linestyle='-', linewidth=2, label='表土层',
                                  alpha=0.6)
-        patch_E = mpatches.Patch(facecolor='#F5DEB3', edgecolor='white', linestyle=':', linewidth=1.5, label='淋溶层',
+        patch_E = mpatches.Patch(facecolor='#F5DEB3', edgecolor='white', linestyle=':', linewidth=1.5, label='淋溶层 (粉质/砂质土)',
                                  alpha=0.6)
-        patch_B = mpatches.Patch(facecolor='#CD853F', edgecolor='white', linestyle='--', linewidth=2.5, label='淀积层',
+        patch_B = mpatches.Patch(facecolor='#CD853F', edgecolor='white', linestyle='--', linewidth=2.5, label='淀积层 (黏土/氧化物)',
                                  alpha=0.6)
         patch_C = mpatches.Patch(facecolor='#708090', edgecolor='gray', linestyle='-', linewidth=2, label='母质层',
                                  alpha=0.6)
@@ -239,9 +250,8 @@ class SoilPollutionSimulator:
 
         ax.set_facecolor('#1a1a1a')
 
-        # 转换为base64
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.3)
         plt.close(fig)
         buf.seek(0)
         img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
@@ -300,7 +310,7 @@ class SoilPollutionSimulator:
             depth_values.append(depth)
             concentration_values.append(conc)
 
-        max_depth = 200
+        max_depth = self.surface_y[self.params['source_x']]
         valid_indices = [i for i, d in enumerate(depth_values) if d <= max_depth]
         if valid_indices:
             depth_values = [depth_values[i] for i in valid_indices]
