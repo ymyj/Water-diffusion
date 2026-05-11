@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>土壤污染扩散模拟系统</title>
+    <title>地下水垂向扩散模拟平台</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             margin: 0;
@@ -17,24 +18,102 @@
             background: linear-gradient(135deg, #f8fafc 0%, #e8f4f8 100%);
             min-height: 100vh;
             color: #2c3e50;
+            overflow: hidden;
+        }
+        .header {
+            height: 60px;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #1a2332;
+        }
+        .header-title .icon {
+            font-size: 1.6em;
+            color: #2c6ecb;
+        }
+        .header-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .header-buttons button {
+            flex: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 500;
+            border: 1px solid #e8e8e8;
+            background: #ffffff;
+            color: #1a2332;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .header-buttons button:hover {
+            transform: none;
+            box-shadow: none;
+            background: #f5f5f5;
+        }
+        .btn-run {
+            background: #1677ff !important;
+            color: #ffffff !important;
+            border: none !important;
+            font-weight: 500;
+        }
+        .btn-run:hover {
+            background: #4096ff !important;
+        }
+        .btn-run:disabled {
+            background: #91caff !important;
+            color: #ffffff !important;
+        }
+        .btn-reset-header {
+            background: #ffffff;
+            color: #1a2332;
+        }
+        .btn-reset-header:hover {
+            background: #f5f5f5;
+        }
+        .btn-export {
+            background: #ffffff;
+            color: #1a2332;
+        }
+        .btn-export:hover {
+            background: #f5f5f5;
+        }
+        .btn-export:disabled {
+            background: #f5f5f5;
+            color: #a0aec0;
         }
         .container {
             display: flex;
-            height: 100vh;
+            height: calc(100vh - 60px);
+            padding: 20px;
+            gap: 20px;
         }
         .sidebar {
             width: 400px;
+            min-width: 400px;
             background: #ffffff;
-            border-right: 2px solid #4a90d9;
+            border-radius: 12px;
             padding: 20px;
             overflow-y: auto;
-            box-shadow: 2px 0 10px rgba(74, 144, 217, 0.1);
+            box-shadow: 0 2px 10px rgba(74, 144, 217, 0.1);
+            border: 1px solid #e2e8f0;
         }
         .main-content {
             flex: 1;
-            padding: 20px;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
         h1 {
             text-align: center;
@@ -100,6 +179,10 @@
             background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
             color: #fff;
         }
+        .btn-export {
+            background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
+            color: #fff;
+        }
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(44, 110, 203, 0.3);
@@ -108,6 +191,18 @@
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
+        }
+        .content-area {
+            flex: 1;
+            display: flex;
+            gap: 20px;
+            min-height: 0;
+        }
+        .visualization-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
         }
         .visualization {
             flex: 1;
@@ -119,11 +214,78 @@
             border: 2px solid #e2e8f0;
             overflow: hidden;
             position: relative;
+            min-height: 0;
         }
         .visualization img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+        }
+        .stats-area {
+            width: 520px;
+            min-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .stats-card {
+            background: #ffffff;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+        }
+        .stats-title {
+            font-size: 1em;
+            font-weight: bold;
+            color: #2c6ecb;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .stat-item {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-size: 1.3em;
+        }
+        .stat-icon.blue { background: linear-gradient(135deg, #2c6ecb, #4a90d9); }
+        .stat-icon.green { background: linear-gradient(135deg, #27ae60, #2ecc71); }
+        .stat-icon.orange { background: linear-gradient(135deg, #e67e22, #f39c12); }
+        .stat-icon.purple { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
+        .stat-label {
+            font-size: 0.8em;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-unit {
+            font-size: 0.8em;
+            color: #a0aec0;
+        }
+        .chart-container {
+            flex: 1;
+            min-height: 250px;
+            position: relative;
         }
         .status-bar {
             margin-top: 15px;
@@ -177,6 +339,26 @@
 </head>
 <body>
     <div id="app">
+        <div class="header">
+            <div class="header-title">
+                <span class="icon">💧</span>
+                <span>地下水垂向扩散模拟平台</span>
+            </div>
+            <div class="header-buttons">
+                <button class="btn-run" @click="startSimulation" :disabled="isRunning">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none" style="display:inline;vertical-align:middle;margin-right:6px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    运行模拟
+                </button>
+                <button class="btn-reset-header" @click="resetSimulation">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:6px;"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    重置参数
+                </button>
+                <button class="btn-export" @click="exportAnimation" :disabled="isRunning || !hasFrames">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    导出结果
+                </button>
+            </div>
+        </div>
         <div class="container">
             <div class="sidebar">
                 <h1>⚙️ 参数设置</h1>
@@ -291,7 +473,7 @@
 
                 <div class="collapsible">
                     <div class="collapsible-header" @click="toggleSection('layerB')">
-                        <span>🧱 淀积层 (B层)</span>
+                        <span> 淀积层 (B层)</span>
                         <span>{{ openSections.layerB ? '▼' : '▶' }}</span>
                     </div>
                     <div class="collapsible-content" :class="{ open: openSections.layerB }">
@@ -346,19 +528,53 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="btn-group">
-                    <button class="btn-start" @click="startSimulation" :disabled="isRunning">▶ 开始</button>
-                    <button class="btn-stop" @click="stopSimulation" :disabled="!isRunning">⏹ 停止</button>
-                    <button class="btn-reset" @click="resetSimulation">🔄 重置</button>
-                </div>
             </div>
 
             <div class="main-content">
-                <h1>🌍 土壤污染扩散模拟</h1>
-                <div class="visualization">
-                    <img v-if="currentImage" :src="'data:image/png;base64,' + currentImage" alt="Simulation">
-                    <div v-else style="color: #a0aec0; font-size: 1.2em;">点击"开始"运行模拟</div>
+                <div class="content-area">
+                    <div class="visualization-area">
+                        <div class="visualization">
+                            <img v-if="currentImage" :src="'data:image/png;base64,' + currentImage" alt="Simulation">
+                            <div v-else style="color: #a0aec0; font-size: 1.2em;">点击"运行模拟"开始模拟</div>
+                        </div>
+                    </div>
+                    <div class="stats-area">
+                        <div class="stats-card">
+                            <div class="stats-title">📊 结果统计</div>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-icon blue">🔬</div>
+                                    <div class="stat-label">最大浓度</div>
+                                    <div class="stat-value">{{ stats.maxConcentration }}</div>
+                                    <div class="stat-unit">(mg/L)</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon green"></div>
+                                    <div class="stat-label">超标面积</div>
+                                    <div class="stat-value">{{ stats.exceedArea }}</div>
+                                    <div class="stat-unit">(m²)</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon orange">📦</div>
+                                    <div class="stat-label">超标体积</div>
+                                    <div class="stat-value">{{ stats.exceedVolume }}</div>
+                                    <div class="stat-unit">(m³)</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon purple">📏</div>
+                                    <div class="stat-label">迁移距离</div>
+                                    <div class="stat-value">{{ stats.migrationDistance }}</div>
+                                    <div class="stat-unit">(m)</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stats-card" style="flex: 1; display: flex; flex-direction: column;">
+                            <div class="stats-title"> 浓度随深度变化</div>
+                            <div class="chart-container">
+                                <canvas id="depthChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="status-bar">
                     <div class="status-text">
@@ -378,7 +594,7 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref, onMounted, nextTick } = Vue;
 
         createApp({
             setup() {
@@ -401,9 +617,99 @@
                 });
 
                 const progress = ref(0);
+                const hasFrames = ref(false);
+
+                const stats = ref({
+                    maxConcentration: 0,
+                    exceedArea: 0,
+                    exceedVolume: 0,
+                    migrationDistance: 0
+                });
+
+                let depthChart = null;
 
                 const toggleSection = (section) => {
                     openSections.value[section] = !openSections.value[section];
+                };
+
+                const initDepthChart = () => {
+                    const ctx = document.getElementById('depthChart');
+                    if (!ctx) return;
+                    
+                    if (depthChart) {
+                        depthChart.destroy();
+                    }
+                    
+                    depthChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: '浓度曲线',
+                                data: [],
+                                borderColor: '#4a90d9',
+                                backgroundColor: 'rgba(74, 144, 217, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 2,
+                                pointHoverRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y',
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: { color: '#2c3e50' }
+                                },
+                                title: {
+                                    display: true,
+                                    text: '浓度随深度变化 (x = 200 m处)',
+                                    color: '#2c6ecb',
+                                    font: { size: 12 }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    title: {
+                                        display: true,
+                                        text: '浓度 (mg/L)',
+                                        color: '#2c3e50'
+                                    },
+                                    ticks: { color: '#718096' },
+                                    grid: { color: '#e2e8f0' },
+                                    beginAtZero: true
+                                },
+                                y: {
+                                    reverse: true,
+                                    title: {
+                                        display: true,
+                                        text: '深度 (m)',
+                                        color: '#2c3e50'
+                                    },
+                                    ticks: { color: '#718096' },
+                                    grid: { color: '#e2e8f0' },
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                };
+
+                const updateDepthChart = (depthData, concentrationData) => {
+                    if (!depthChart) {
+                        initDepthChart();
+                    }
+                    if (depthChart && depthData && concentrationData) {
+                        depthChart.data.labels = depthData;
+                        depthChart.data.datasets[0].data = concentrationData;
+                        depthChart.update('none');
+                    }
                 };
 
                 const loadDefaultParams = async () => {
@@ -446,9 +752,40 @@
                         currentStep.value = 0;
                         currentTime.value = 0;
                         progress.value = 0;
+                        hasFrames.value = false;
                         statusText.value = '已重置';
+                        stats.value = {
+                            maxConcentration: 0,
+                            exceedArea: 0,
+                            exceedVolume: 0,
+                            migrationDistance: 0
+                        };
                     } catch (error) {
                         console.error('重置模拟失败:', error);
+                    }
+                };
+
+                const exportAnimation = async () => {
+                    try {
+                        statusText.value = '正在生成动画...';
+                        const response = await fetch('/api/export-animation');
+                        if (!response.ok) {
+                            statusText.value = '导出失败';
+                            return;
+                        }
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'simulation.gif';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                        statusText.value = '模拟完成';
+                    } catch (error) {
+                        console.error('导出动画失败:', error);
+                        statusText.value = '导出失败';
                     }
                 };
 
@@ -463,11 +800,27 @@
                         currentTime.value = data.time;
                         totalSteps.value = data.total_steps;
                         progress.value = (data.step / data.total_steps) * 100;
+                        hasFrames.value = true;
+                        
+                        if (data.stats) {
+                            stats.value.maxConcentration = data.stats.max_concentration || 0;
+                            stats.value.exceedArea = data.stats.exceed_area || 0;
+                            stats.value.exceedVolume = data.stats.exceed_volume || 0;
+                            stats.value.migrationDistance = data.stats.migration_distance || 0;
+                        }
+                        
+                        if (data.depth_data && data.concentration_data) {
+                            updateDepthChart(data.depth_data, data.concentration_data);
+                        }
                     });
                     
                     socket.value.on('simulation_complete', () => {
                         isRunning.value = false;
                         statusText.value = '模拟完成';
+                    });
+                    
+                    nextTick(() => {
+                        initDepthChart();
                     });
                 });
 
@@ -481,10 +834,13 @@
                     statusText,
                     progress,
                     openSections,
+                    stats,
+                    hasFrames,
                     toggleSection,
                     startSimulation,
                     stopSimulation,
-                    resetSimulation
+                    resetSimulation,
+                    exportAnimation
                 };
             }
         }).mount('#app');
